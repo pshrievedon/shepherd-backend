@@ -1,4 +1,3 @@
-// index.js (Replit server)
 const express = require("express");
 const cors = require("cors");
 const app = express();
@@ -24,47 +23,55 @@ function analyzeProfile(profileData) {
   };
 
   // --- Engagement Analysis: Account Age ---
-  // Assume profileData.accountAge is a string like "Joined 3 years ago"
   let years = 0;
-  const match = profileData.accountAge.match(/(\d+)\s*year/);
-  if (match) {
-    years = parseInt(match[1], 10);
+  if (profileData.accountAge) {
+    const match = profileData.accountAge.match(/(\d+)\s*year/);
+    if (match) {
+      years = parseInt(match[1], 10);
+    }
   }
-  if (years < 1) {
-    analysisDetails.engagement_with_users.score = 80;
+  if (!profileData.accountAge) {
+    analysisDetails.engagement_with_users.score = 50;
     analysisDetails.engagement_with_users.description =
-      "Account is very new, engagement is low.";
-  } else if (years < 3) {
+      "Account age not provided.";
+  } else if (years < 1) {
     analysisDetails.engagement_with_users.score = 60;
     analysisDetails.engagement_with_users.description =
-      "Account is relatively new, moderate engagement.";
-  } else {
-    analysisDetails.engagement_with_users.score = 30;
+      "Account is very new; low engagement is common in new users.";
+  } else if (years < 3) {
+    analysisDetails.engagement_with_users.score = 40;
     analysisDetails.engagement_with_users.description =
-      "Account is older, engagement appears normal.";
+      "Account is moderately new; engagement appears acceptable.";
+  } else {
+    analysisDetails.engagement_with_users.score = 20;
+    analysisDetails.engagement_with_users.description =
+      "Account is well-established; engagement is as expected.";
   }
 
   // --- Content Analysis: Recent Comments ---
-  if (!profileData.recentComments || profileData.recentComments.length === 0) {
-    analysisDetails.content_analysis.score = 80;
+  if (
+    !Array.isArray(profileData.recentComments) ||
+    profileData.recentComments.length === 0
+  ) {
+    analysisDetails.content_analysis.score = 70;
     analysisDetails.content_analysis.description =
-      "No recent comments detected; activity seems minimal.";
+      "No recent comments detected; the user might simply be a lurker.";
   } else {
     let totalLength = profileData.recentComments.reduce(
-      (sum, comment) => sum + comment.text.length,
+      (sum, comment) => sum + (comment.text ? comment.text.length : 0),
       0
     );
     let avgLength = totalLength / profileData.recentComments.length;
-    if (avgLength < 20) {
-      analysisDetails.content_analysis.score = 80;
+    if (avgLength < 15) {
+      analysisDetails.content_analysis.score = 70;
       analysisDetails.content_analysis.description =
-        "Recent comments are very short; may be automated.";
-    } else if (avgLength < 50) {
-      analysisDetails.content_analysis.score = 60;
+        "Recent comments are unusually short; this can sometimes indicate automation.";
+    } else if (avgLength < 40) {
+      analysisDetails.content_analysis.score = 40;
       analysisDetails.content_analysis.description =
-        "Recent comments are a bit short; some automation might be present.";
+        "Recent comments are within a typical range for casual users.";
     } else {
-      analysisDetails.content_analysis.score = 30;
+      analysisDetails.content_analysis.score = 20;
       analysisDetails.content_analysis.description =
         "Recent comments appear detailed and natural.";
     }
@@ -72,15 +79,15 @@ function analyzeProfile(profileData) {
 
   // --- Profile Metadata Analysis: Description ---
   if (!profileData.description || profileData.description.trim() === "") {
-    analysisDetails.profile_metadata.score = 80;
+    analysisDetails.profile_metadata.score = 50;
     analysisDetails.profile_metadata.description =
-      "Profile description is missing, which is suspicious.";
+      "Profile description is missing; note that many genuine users leave this blank.";
   } else if (profileData.description.length < 10) {
-    analysisDetails.profile_metadata.score = 60;
+    analysisDetails.profile_metadata.score = 50;
     analysisDetails.profile_metadata.description =
       "Profile description is very brief.";
   } else {
-    analysisDetails.profile_metadata.score = 30;
+    analysisDetails.profile_metadata.score = 20;
     analysisDetails.profile_metadata.description =
       "Profile description appears normal.";
   }
@@ -101,13 +108,16 @@ function analyzeProfile(profileData) {
 }
 
 app.post("/api/chat", (req, res) => {
-  const profileData = req.body.message;
-  console.log("Received profile data:", profileData);
-
-  // Call our analysis function instead of returning dummy data
-  const result = analyzeProfile(profileData);
-  console.log("Analysis result:", result);
-  res.json(result);
+  try {
+    const profileData = req.body.message;
+    console.log("Received profile data:", profileData);
+    const result = analyzeProfile(profileData);
+    console.log("Analysis result:", result);
+    res.json(result);
+  } catch (error) {
+    console.error("Error analyzing profile:", error);
+    res.status(500).json({ error: error.toString() });
+  }
 });
 
 app.listen(port, () => {
